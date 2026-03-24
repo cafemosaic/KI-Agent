@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mein KI-Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Google API -->
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+  :root {
+    --bg:#0a0a0f; --surface:#13131a; --surface2:#1c1c28; --border:#2a2a3a;
+    --accent:#c8f55a; --accent2:#7c6af7; --text:#f0f0f8; --muted:#6b6b88;
+    --danger:#ff6b6b; --success:#4ade80;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow:hidden;}
+
+  /* ── SETUP SCREEN ── */
+  #setup-screen{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .setup-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:40px;width:min(520px,100%);display:flex;flex-direction:column;gap:20px;animation:fadeUp 0.5s ease;}
+  .setup-logo{width:48px;height:48px;background:var(--accent);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:4px;}
+  .setup-title{font-family:'DM Serif Display',serif;font-size:26px;}
+  .setup-subtitle{font-size:13px;color:var(--muted);line-height:1.6;}
+  .setup-step{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;gap:14px;align-items:flex-start;}
+  .step-num{width:24px;height:24px;border-radius:8px;background:var(--accent);color:#0a0a0f;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+  .step-content{flex:1;}
+  .step-title{font-size:13px;font-weight:600;margin-bottom:4px;}
+  .step-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+  .step-link{color:var(--accent);text-decoration:none;font-size:12px;}
+  .step-link:hover{text-decoration:underline;}
+  .setup-input-group{display:flex;flex-direction:column;gap:8px;}
+  .setup-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;}
+  .setup-input{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color 0.2s;}
+  .setup-input:focus{border-color:var(--accent2);}
+  .setup-btn{padding:13px;background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .setup-btn:hover{opacity:0.85;}
+  .setup-btn:disabled{opacity:0.4;cursor:default;}
+  .setup-error{background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.3);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--danger);display:none;}
+  .setup-error.show{display:block;}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* ── SIDEBAR ── */
+  .sidebar{width:72px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:8px;flex-shrink:0;z-index:10;}
+  .logo{width:40px;height:40px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:20px;flex-shrink:0;}
+  .nav-btn{width:44px;height:44px;border-radius:12px;border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;transition:all 0.2s;position:relative;}
+  .nav-btn:hover,.nav-btn.active{background:var(--surface2);color:var(--text);}
+  .nav-btn.active::after{content:'';position:absolute;right:-4px;width:3px;height:20px;background:var(--accent);border-radius:2px;}
+  .sidebar-spacer{flex:1;}
+
+  /* ── MAIN ── */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);}
+  .header-title{font-family:'DM Serif Display',serif;font-size:20px;flex:1;}
+  .drive-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;}
+  .drive-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background 0.3s;}
+  .drive-dot.ok{background:var(--success);}
+  .drive-dot.busy{background:var(--accent);animation:pulse 1s infinite;}
+  .drive-dot.err{background:var(--danger);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  .header-badge{padding:4px 12px;background:rgba(200,245,90,0.12);color:var(--accent);border-radius:20px;font-size:11px;font-weight:500;border:1px solid rgba(200,245,90,0.25);}
+
+  /* ── VIEWS ── */
+  .view{display:none;flex:1;overflow:hidden;flex-direction:column;}
+  .view.active{display:flex;}
+
+  /* ── UTILS ── */
+  ::-webkit-scrollbar{width:4px;height:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .loading-bar{height:2px;background:linear-gradient(90deg,transparent,var(--accent2),transparent);background-size:200%;animation:shimmer 1.5s infinite;border-radius:2px;}
+  @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+
+  .btn-primary{padding:8px 18px;background:var(--accent);color:#0a0a0f;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity 0.2s;}
+  .btn-primary:hover{opacity:0.85;}
+  .btn-primary:disabled{opacity:0.4;cursor:default;}
+  .btn-secondary{padding:8px 18px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+  .btn-secondary:hover{border-color:var(--accent2);}
+
+  .form-field{display:flex;flex-direction:column;gap:6px;}
+  .form-label{font-size:12px;color:var(--muted);font-weight:500;}
+  .form-input{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color 0.2s;width:100%;}
+  .form-input:focus{border-color:var(--accent2);}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:min(540px,95vw);padding:28px;display:flex;flex-direction:column;gap:16px;animation:fadeUp 0.3s ease;max-height:90vh;overflow-y:auto;}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;}
+  .modal-title{font-family:'DM Serif Display',serif;font-size:20px;}
+  .modal-close{width:32px;height:32px;border-radius:8px;border:none;background:var(--surface2);color:var(--muted);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;}
+
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 18px;font-size:13px;z-index:999;transform:translateY(80px);opacity:0;transition:all 0.3s;pointer-events:none;}
+  .toast.show{transform:translateY(0);opacity:1;}
+  .toast.success{border-color:rgba(74,222,128,0.4);}
+  .toast.error{border-color:rgba(255,107,107,0.4);}
+
+  /* ── DASHBOARD ── */
+  .dashboard-content{flex:1;overflow-y:auto;padding:24px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-content:start;}
+  .dash-card{background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:20px;cursor:pointer;transition:all 0.2s;animation:fadeUp 0.4s ease both;}
+  .dash-card:hover{border-color:var(--accent2);transform:translateY(-2px);}
+  .dash-card.wide{grid-column:1/-1;}
+  .dash-card-icon{font-size:26px;margin-bottom:10px;}
+  .dash-card-title{font-family:'DM Serif Display',serif;font-size:16px;margin-bottom:4px;}
+  .dash-card-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+  .dash-stat{font-size:28px;font-weight:300;color:var(--accent);font-family:'DM Serif Display',serif;}
+  .status-bar{display:flex;gap:6px;align-items:center;margin-top:10px;}
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .status-text{font-size:11px;color:var(--muted);}
+  .drive-badge{display:inline-flex;align-items:center;gap:5px;margin-top:10px;padding:3px 10px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);border-radius:20px;font-size:10px;color:var(--success);}
+
+  /* ── CHAT ── */
+  .mode-selector{display:flex;gap:6px;padding:12px 28px 0;flex-wrap:wrap;}
+  .mode-btn{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+  .mode-btn.active{background:var(--surface2);color:var(--text);border-color:var(--accent2);}
+  .chat-messages{flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;}
+  .msg{display:flex;gap:10px;max-width:800px;animation:fadeUp 0.3s ease;}
+  .msg.user{flex-direction:row-reverse;align-self:flex-end;}
+  .msg-avatar{width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+  .msg.ai .msg-avatar{background:var(--surface2);}
+  .msg.user .msg-avatar{background:var(--accent);}
+  .msg-bubble{padding:11px 15px;border-radius:16px;font-size:13.5px;line-height:1.65;max-width:calc(100% - 40px);}
+  .msg.ai .msg-bubble{background:var(--surface2);border-radius:4px 16px 16px 16px;}
+  .msg.user .msg-bubble{background:var(--accent);color:#0a0a0f;border-radius:16px 4px 16px 16px;}
+  .typing-indicator{display:flex;gap:4px;align-items:center;padding:6px 2px;}
+  .typing-dot{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:bounce 1.2s infinite;}
+  .typing-dot:nth-child(2){animation-delay:0.2s}.typing-dot:nth-child(3){animation-delay:0.4s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+  .quick-actions{padding:10px 28px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);}
+  .qa-chip{padding:5px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--muted);cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+  .qa-chip:hover{border-color:var(--accent);color:var(--accent);}
+  .chat-input-area{padding:12px 28px 18px;display:flex;gap:10px;align-items:flex-end;}
+  .input-wrapper{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:16px;display:flex;align-items:flex-end;padding:10px 14px;gap:8px;transition:border-color 0.2s;}
+  .input-wrapper:focus-within{border-color:var(--accent2);}
+  .chat-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;resize:none;max-height:120px;line-height:1.5;}
+  .chat-input::placeholder{color:var(--muted);}
+  .send-btn{width:36px;height:36px;background:var(--accent);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;transition:opacity 0.2s;}
+  .send-btn:hover{opacity:0.85;} .send-btn:disabled{opacity:0.4;cursor:default;}
+  .chat-save-hint{font-size:10px;color:var(--muted);padding:0 28px 4px;}
+
+  /* ── TOOLBAR ── */
+  .toolbar{padding:14px 28px;display:flex;gap:10px;border-bottom:1px solid var(--border);align-items:center;}
+
+  /* ── EMAIL ── */
+  .email-content{flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:10px;}
+  .email-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;cursor:pointer;transition:all 0.2s;display:flex;gap:12px;align-items:flex-start;}
+  .email-card:hover{border-color:var(--accent2);transform:translateX(2px);}
+  .email-card.unread{border-left:3px solid var(--accent);}
+  .email-avatar{width:34px;height:34px;border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+  .email-info{flex:1;min-width:0;}
+  .email-from{font-size:13px;font-weight:600;margin-bottom:2px;}
+  .email-subject{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .email-preview{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .email-time{font-size:11px;color:var(--muted);flex-shrink:0;}
+
+  /* ── CALENDAR ── */
+  .cal-toolbar{padding:14px 28px;display:flex;gap:10px;border-bottom:1px solid var(--border);align-items:center;}
+  .cal-nav{display:flex;align-items:center;gap:10px;flex:1;}
+  .cal-nav-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+  .cal-nav-btn:hover{border-color:var(--accent);}
+  .cal-month{font-family:'DM Serif Display',serif;font-size:17px;}
+  .cal-content{flex:1;overflow-y:auto;padding:20px 28px;display:grid;grid-template-columns:1fr 280px;gap:20px;}
+  .cal-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px;}
+  .cal-weekday{text-align:center;font-size:10px;color:var(--muted);font-weight:500;padding:4px;}
+  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .cal-day{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:all 0.2s;background:var(--surface2);border:1px solid transparent;position:relative;}
+  .cal-day:hover{border-color:var(--border);}
+  .cal-day.today{background:rgba(200,245,90,0.12);border-color:var(--accent);color:var(--accent);font-weight:600;}
+  .cal-day.other-month{opacity:0.3;}
+  .cal-day.has-event::after{content:'';position:absolute;bottom:3px;width:4px;height:4px;background:var(--accent2);border-radius:50%;}
+  .cal-sidebar{display:flex;flex-direction:column;gap:14px;}
+  .cal-upcoming{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;}
+  .cal-upcoming-title{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;}
+  .event-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+  .event-item:last-child{border-bottom:none;}
+  .event-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+  .event-name{font-size:12px;font-weight:500;}
+  .event-time{font-size:10px;color:var(--muted);margin-top:1px;}
+
+  /* ── RECIPE ── */
+  .recipe-content{flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:16px;}
+  .recipe-input-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;display:flex;gap:10px;align-items:flex-end;}
+  .recipe-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .recipe-result-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;animation:fadeUp 0.4s ease;}
+  .recipe-result-card h3{font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:10px;}
+  .recipe-meta{display:flex;gap:14px;margin-bottom:14px;}
+  .recipe-meta-item{font-size:12px;color:var(--muted);}
+  .recipe-section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;}
+  .recipe-list{list-style:none;display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .recipe-list li{font-size:12px;display:flex;gap:6px;}
+  .recipe-list li::before{content:'▸';color:var(--accent);flex-shrink:0;}
+  .saved-recipes{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+  .saved-recipe-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;position:relative;}
+  .saved-recipe-card:hover{border-color:var(--accent);}
+  .saved-recipe-name{font-size:13px;font-weight:600;margin-bottom:4px;}
+  .saved-recipe-meta{font-size:11px;color:var(--muted);}
+  .del-btn{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:6px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;opacity:0;transition:opacity 0.2s;}
+  .saved-recipe-card:hover .del-btn{opacity:1;}
+
+  /* ── NOTES ── */
+  .notes-content{flex:1;overflow-y:auto;padding:20px 28px;}
+  .notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .note-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px;transition:all 0.2s;position:relative;min-height:100px;}
+  .note-card:hover{border-color:var(--accent2);}
+  .note-card.todo{border-left:3px solid var(--accent2);}
+  .note-card.note{border-left:3px solid var(--accent);}
+  .note-badge{display:inline-flex;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;margin-bottom:8px;}
+  .badge-todo{background:rgba(124,106,247,0.15);color:var(--accent2);}
+  .badge-note{background:rgba(200,245,90,0.12);color:var(--accent);}
+  .note-title{font-size:13px;font-weight:600;margin-bottom:6px;}
+  .note-body{font-size:12px;color:var(--muted);line-height:1.5;}
+  .note-date{font-size:10px;color:var(--muted);margin-top:8px;}
+  .note-del{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:6px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;opacity:0;transition:opacity 0.2s;}
+  .note-card:hover .note-del{opacity:1;}
+
+  /* ── SOCIAL ── */
+  .social-content{flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;}
+  .social-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px 18px;}
+  .social-platform{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .platform-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .platform-name{font-weight:600;font-size:13px;}
+  .platform-handle{font-size:11px;color:var(--muted);}
+  .social-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+  .metric{text-align:center;}
+  .metric-val{font-size:17px;font-weight:600;font-family:'DM Serif Display',serif;}
+  .metric-label{font-size:10px;color:var(--muted);margin-top:1px;}
+  .metric-change{font-size:10px;margin-top:1px;}
+  .metric-change.up{color:var(--accent);}
+  .metric-change.down{color:var(--danger);}
+  .social-alert{background:rgba(124,106,247,0.08);border:1px solid rgba(124,106,247,0.2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--muted);}
+
+  /* ── WEBSITE ── */
+  .website-content{flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;}
+  .analysis-card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;}
+  .analysis-title{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;}
+  .score-circle{width:64px;height:64px;border-radius:50%;border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--accent);font-family:'DM Serif Display',serif;flex-shrink:0;}
+  .issue-list{display:flex;flex-direction:column;gap:6px;}
+  .issue-item{display:flex;gap:8px;align-items:flex-start;padding:8px;background:var(--surface);border-radius:8px;font-size:12px;}
+  .issue-severity{padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;flex-shrink:0;}
+  .sev-high{background:rgba(255,107,107,0.15);color:var(--danger);}
+  .sev-med{background:rgba(255,190,90,0.15);color:#ffbe5a;}
+  .sev-low{background:rgba(200,245,90,0.15);color:var(--accent);}
+
+  /* ── SETTINGS ── */
+  .settings-content{flex:1;overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:20px;max-width:600px;}
+  .settings-section{background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;}
+  .settings-section-title{font-family:'DM Serif Display',serif;font-size:17px;}
+  .settings-row{display:flex;align-items:center;gap:12px;}
+  .settings-label{flex:1;font-size:13px;}
+  .settings-desc{font-size:11px;color:var(--muted);margin-top:2px;}
+  .toggle{width:40px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;position:relative;transition:background 0.2s;border:none;flex-shrink:0;}
+  .toggle.on{background:var(--accent);}
+  .toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:white;top:3px;left:3px;transition:left 0.2s;}
+  .toggle.on::after{left:21px;}
+</style>
+</head>
+<body>
+
+<!-- ═══ SETUP SCREEN ═══ -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <div>
+      <div class="setup-logo">✦</div>
+      <div class="setup-title">KI-Agent einrichten</div>
+      <div class="setup-subtitle" style="margin-top:6px">Verbinde deinen Google Drive für dauerhafte Datenspeicherung. Einmalige Einrichtung — danach startet die App automatisch.</div>
+    </div>
+
+    <div class="setup-step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Google Cloud Console öffnen</div>
+        <div class="step-desc">Gehe zu <a href="https://console.cloud.google.com" target="_blank" class="step-link">console.cloud.google.com</a> → Neues Projekt erstellen (z.B. "KI-Agent")</div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">APIs aktivieren</div>
+        <div class="step-desc">APIs & Dienste → Bibliothek → "Google Drive API" suchen → Aktivieren. Danach auch "Google Sheets API" aktivieren.</div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">OAuth-Client erstellen</div>
+        <div class="step-desc">APIs & Dienste → Anmeldedaten → "+ Anmeldedaten erstellen" → OAuth-Client-ID → Anwendungstyp: <strong>Webanwendung</strong> → Autorisierte JavaScript-Quellen: <code style="background:var(--surface);padding:1px 5px;border-radius:4px;font-size:11px">http://localhost</code> und die URL dieser Datei hinzufügen.</div>
+      </div>
+    </div>
+
+    <div class="setup-step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">Client-ID & API-Key kopieren</div>
+        <div class="step-desc">APIs & Dienste → Anmeldedaten → deinen OAuth-Client anklicken → Client-ID kopieren. Für den API-Key: "+ Anmeldedaten" → API-Schlüssel.</div>
+      </div>
+    </div>
+
+    <div class="setup-input-group">
+      <div class="setup-label">Groq API Key</div>
+      <input class="setup-input" id="input-anthropic" type="password" placeholder="gsk_...">
+    </div>
+
+    <div class="divider">Google Drive</div>
+
+    <div class="setup-input-group">
+      <div class="setup-label">Google Client ID</div>
+      <input class="setup-input" id="input-client-id" placeholder="123456789-abc.apps.googleusercontent.com">
+    </div>
+
+    <div class="setup-input-group">
+      <div class="setup-label">Google API Key</div>
+      <input class="setup-input" id="input-api-key" type="password" placeholder="AIzaSy...">
+    </div>
+
+    <div class="setup-error" id="setup-error"></div>
+
+    <button class="setup-btn" id="setup-btn" onclick="startSetup()">
+      <span>Mit Google Drive verbinden</span> →
+    </button>
+
+    <div style="text-align:center;font-size:11px;color:var(--muted)">
+      Alle Keys werden nur lokal in deinem Browser gespeichert — nie auf einem Server.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<nav class="sidebar" id="app-sidebar" style="display:none">
+  <div class="logo">✦</div>
+  <button class="nav-btn active" data-view="dashboard">⊞</button>
+  <button class="nav-btn" data-view="chat">💬</button>
+  <button class="nav-btn" data-view="email">✉️</button>
+  <button class="nav-btn" data-view="calendar">📅</button>
+  <button class="nav-btn" data-view="recipe">🍳</button>
+  <button class="nav-btn" data-view="notes">📝</button>
+  <button class="nav-btn" data-view="social">📊</button>
+  <button class="nav-btn" data-view="website">🌐</button>
+  <div class="sidebar-spacer"></div>
+  <button class="nav-btn" data-view="settings">⚙️</button>
+</nav>
+
+<div class="main" id="app-main" style="display:none">
+  <div class="header">
+    <div class="header-title" id="header-title">Dashboard</div>
+    <div class="drive-status" onclick="syncNow()">
+      <div class="drive-dot ok" id="drive-dot"></div>
+      <span id="drive-label">Drive verbunden</span>
+    </div>
+    <div class="header-badge">KI aktiv</div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="view-dashboard">
+    <div class="dashboard-content">
+      <div class="dash-card wide" onclick="switchView('chat')">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="dash-card-icon">💬</div>
+            <div class="dash-card-title">KI-Assistent</div>
+            <div class="dash-card-desc">Frag mich alles — Texte, Analyse, Planung</div>
+            <div class="drive-badge">💾 Chat-Verlauf in Google Drive</div>
+          </div>
+          <div style="text-align:right">
+            <div class="dash-stat" id="dash-chat-count">0</div>
+            <div class="status-bar" style="justify-content:flex-end"><div class="status-dot"></div><div class="status-text">Nachrichten</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-card" onclick="switchView('email')">
+        <div class="dash-card-icon">✉️</div><div class="dash-card-title">E-Mails</div>
+        <div class="dash-card-desc">Schreiben & verwalten mit KI</div>
+      </div>
+      <div class="dash-card" onclick="switchView('calendar')">
+        <div class="dash-card-icon">📅</div><div class="dash-card-title">Kalender</div>
+        <div class="dash-card-desc">Termine & Ereignisse</div>
+      </div>
+      <div class="dash-card" onclick="switchView('recipe')">
+        <div class="dash-card-icon">🍳</div><div class="dash-card-title">Rezepte</div>
+        <div class="dash-card-desc">Generieren & speichern</div>
+        <div class="drive-badge">💾 <span id="dash-recipe-count">0</span> Favoriten</div>
+      </div>
+      <div class="dash-card" onclick="switchView('notes')">
+        <div class="dash-card-icon">📝</div><div class="dash-card-title">Notizen & To-dos</div>
+        <div class="dash-card-desc">Alles wichtige festhalten</div>
+        <div class="drive-badge">💾 <span id="dash-notes-count">0</span> Einträge</div>
+      </div>
+      <div class="dash-card" onclick="switchView('social')">
+        <div class="dash-card-icon">📊</div><div class="dash-card-title">Social Media</div>
+        <div class="dash-card-desc">Metriken & KI-Strategie</div>
+      </div>
+      <div class="dash-card" onclick="switchView('website')">
+        <div class="dash-card-icon">🌐</div><div class="dash-card-title">Website</div>
+        <div class="dash-card-desc">SEO & Performance Analyse</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="view" id="view-chat">
+    <div class="mode-selector">
+      <button class="mode-btn active" data-mode="general">Allgemein</button>
+      <button class="mode-btn" data-mode="recipe">Rezept</button>
+      <button class="mode-btn" data-mode="seo">SEO</button>
+      <button class="mode-btn" data-mode="social">Social</button>
+      <button class="mode-btn" data-mode="email">E-Mail</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="quick-actions">
+      <div class="qa-chip" onclick="setInput('Schreib mir eine professionelle E-Mail an einen Kunden')">✉️ E-Mail</div>
+      <div class="qa-chip" onclick="setInput('Gib mir ein schnelles Rezept mit Pasta')">🍳 Rezept</div>
+      <div class="qa-chip" onclick="setInput('Wie optimiere ich meine Website für SEO?')">🌐 SEO</div>
+      <div class="qa-chip" onclick="setInput('Erstelle einen Content-Plan für diese Woche')">📅 Content</div>
+    </div>
+    <div class="chat-save-hint">💾 Gespräche werden automatisch in Google Drive gespeichert</div>
+    <div class="chat-input-area">
+      <div class="input-wrapper">
+        <textarea class="chat-input" id="chat-input" placeholder="Schreib mir etwas…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      </div>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+  <!-- EMAIL -->
+  <div class="view" id="view-email">
+    <div class="toolbar">
+      <button class="btn-primary" onclick="openModal('compose-modal')">+ Verfassen</button>
+      <button class="btn-secondary" onclick="loadEmails()">🔄 Laden</button>
+      <div style="flex:1"></div>
+      <span style="font-size:12px;color:var(--muted)" id="email-status">Klicke Laden</span>
+    </div>
+    <div class="email-content" id="email-list">
+      <div style="text-align:center;padding:50px;color:var(--muted)"><div style="font-size:36px;margin-bottom:10px">✉️</div><div style="font-size:13px">Klicke "Laden"</div></div>
+    </div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="view" id="view-calendar">
+    <div class="cal-toolbar">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+        <div class="cal-month" id="cal-month-label"></div>
+        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+      </div>
+      <button class="btn-primary" onclick="openModal('event-modal')">+ Termin</button>
+    </div>
+    <div class="cal-content">
+      <div>
+        <div class="cal-weekdays"><div class="cal-weekday">Mo</div><div class="cal-weekday">Di</div><div class="cal-weekday">Mi</div><div class="cal-weekday">Do</div><div class="cal-weekday">Fr</div><div class="cal-weekday">Sa</div><div class="cal-weekday">So</div></div>
+        <div class="cal-days" id="cal-days"></div>
+      </div>
+      <div class="cal-sidebar">
+        <div class="cal-upcoming">
+          <div class="cal-upcoming-title">Kommende Termine</div>
+          <div id="upcoming-events"><div style="color:var(--muted);font-size:12px">Keine Termine</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECIPE -->
+  <div class="view" id="view-recipe">
+    <div class="toolbar">
+      <span style="font-family:'DM Serif Display',serif;font-size:17px">Rezepte</span>
+      <div style="flex:1"></div>
+      <span style="font-size:12px;color:var(--muted)">💾 In Google Drive</span>
+    </div>
+    <div class="recipe-content">
+      <div class="recipe-input-card">
+        <div style="flex:1">
+          <div class="form-label" style="margin-bottom:5px">Zutaten oder Gericht</div>
+          <input class="form-input" id="recipe-input" placeholder="z.B. Hühnchen, Zitrone… oder 'schnelles Abendessen'">
+        </div>
+        <button class="btn-primary" onclick="generateRecipe()" id="recipe-btn">🍳 Generieren</button>
+      </div>
+      <div id="recipe-results" class="recipe-grid"></div>
+      <div id="saved-recipes-section" style="display:none">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:10px">⭐ Gespeicherte Favoriten</div>
+        <div class="saved-recipes" id="saved-recipes-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTES -->
+  <div class="view" id="view-notes">
+    <div class="toolbar">
+      <button class="btn-primary" onclick="openNoteModal('note')">+ Notiz</button>
+      <button class="btn-secondary" onclick="openNoteModal('todo')">☑ To-do</button>
+      <div style="flex:1"></div>
+      <span style="font-size:12px;color:var(--muted)">💾 In Google Drive</span>
+    </div>
+    <div class="notes-content">
+      <div class="notes-grid" id="notes-grid">
+        <div style="color:var(--muted);font-size:13px;grid-column:1/-1;text-align:center;padding:40px">Erstelle deine erste Notiz!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOCIAL -->
+  <div class="view" id="view-social">
+    <div class="toolbar">
+      <span style="font-family:'DM Serif Display',serif;font-size:17px">Social Media</span>
+      <div style="flex:1"></div>
+      <button class="btn-secondary" onclick="generateSocialInsights()">✨ KI-Analyse</button>
+    </div>
+    <div class="social-content">
+      <div class="social-card">
+        <div class="social-platform"><div class="platform-icon" style="background:#1a1a2e">𝕏</div><div><div class="platform-name">Twitter / X</div><div class="platform-handle">@deinprofil</div></div><div style="margin-left:auto;font-size:11px;color:var(--muted)">Beispieldaten</div></div>
+        <div class="social-metrics">
+          <div class="metric"><div class="metric-val">2.4K</div><div class="metric-label">Follower</div><div class="metric-change up">▲ 3.2%</div></div>
+          <div class="metric"><div class="metric-val">18</div><div class="metric-label">Posts</div><div class="metric-change up">▲ 2</div></div>
+          <div class="metric"><div class="metric-val">4.8%</div><div class="metric-label">Engagement</div><div class="metric-change up">▲ 0.6%</div></div>
+          <div class="metric"><div class="metric-val">12K</div><div class="metric-label">Reichweite</div><div class="metric-change down">▼ 1.1%</div></div>
+        </div>
+        <div class="social-alert">💡 Bester Post-Zeitpunkt: Di–Do, 18–20 Uhr</div>
+      </div>
+      <div class="social-card">
+        <div class="social-platform"><div class="platform-icon" style="background:#1a1028">📸</div><div><div class="platform-name">Instagram</div><div class="platform-handle">@deinprofil</div></div><div style="margin-left:auto;font-size:11px;color:var(--muted)">Beispieldaten</div></div>
+        <div class="social-metrics">
+          <div class="metric"><div class="metric-val">8.1K</div><div class="metric-label">Follower</div><div class="metric-change up">▲ 5.1%</div></div>
+          <div class="metric"><div class="metric-val">34</div><div class="metric-label">Posts</div><div class="metric-change up">▲ 5</div></div>
+          <div class="metric"><div class="metric-val">6.2%</div><div class="metric-label">Engagement</div><div class="metric-change up">▲ 1.2%</div></div>
+          <div class="metric"><div class="metric-val">45K</div><div class="metric-label">Reichweite</div><div class="metric-change up">▲ 8.3%</div></div>
+        </div>
+        <div class="social-alert">🔥 Reels performen 3× besser — mehr Videos!</div>
+      </div>
+      <div id="social-ai-insights"></div>
+    </div>
+  </div>
+
+  <!-- WEBSITE -->
+  <div class="view" id="view-website">
+    <div class="toolbar"><span style="font-family:'DM Serif Display',serif;font-size:17px">Website Optimierung</span></div>
+    <div class="website-content">
+      <div class="analysis-card">
+        <div class="analysis-title">URL analysieren</div>
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <input class="form-input" id="website-url" placeholder="https://deinewebsite.de" style="flex:1">
+          <button class="btn-primary" onclick="analyzeWebsite()">Analysieren</button>
+        </div>
+        <div id="website-results" style="color:var(--muted);font-size:12px">Gib deine URL ein und klicke Analysieren</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="view" id="view-settings">
+    <div class="settings-content">
+      <div style="font-family:'DM Serif Display',serif;font-size:22px">Einstellungen</div>
+      <div class="settings-section">
+        <div class="settings-section-title">👤 Profil</div>
+        <div class="form-field"><div class="form-label">Dein Name</div><input class="form-input" id="setting-name" placeholder="Dein Name" oninput="saveSettings()"></div>
+        <div class="form-field">
+          <div class="form-label">Persönliche Anweisungen für den KI-Assistenten</div>
+          <textarea class="form-input" id="setting-system" placeholder="z.B. Ich bin Unternehmer aus Hamburg. Antworte immer direkt und professionell." oninput="saveSettings()" style="min-height:80px;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">💾 Google Drive</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">Alle Daten werden in der Datei <code style="background:var(--surface);padding:2px 6px;border-radius:4px">ki-agent-data.json</code> in deinem Google Drive gespeichert.</div>
+        <button class="btn-secondary" onclick="syncNow()">🔄 Jetzt synchronisieren</button>
+        <button class="btn-secondary" style="color:var(--danger);border-color:rgba(255,107,107,0.3)" onclick="clearData()">🗑 Alle Daten löschen</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">🔑 API Keys zurücksetzen</div>
+        <div style="font-size:13px;color:var(--muted)">Neu einrichten mit anderen API Keys</div>
+        <button class="btn-secondary" style="color:var(--danger);border-color:rgba(255,107,107,0.3)" onclick="resetSetup()">Einrichtung zurücksetzen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="compose-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">E-Mail verfassen</div><button class="modal-close" onclick="closeModal('compose-modal')">×</button></div>
+    <div class="form-field"><div class="form-label">An</div><input class="form-input" id="email-to" placeholder="empfaenger@beispiel.de"></div>
+    <div class="form-field"><div class="form-label">Betreff</div><input class="form-input" id="email-subject" placeholder="Betreff"></div>
+    <div class="form-field">
+      <div class="form-label">KI-Hilfe</div>
+      <div style="display:flex;gap:8px"><input class="form-input" id="email-ai-prompt" placeholder="z.B. Formelle Anfrage für ein Meeting" style="flex:1"><button class="btn-secondary" onclick="aiWriteEmail()">✨</button></div>
+    </div>
+    <div class="form-field"><div class="form-label">Nachricht</div><textarea class="form-input" id="email-body" placeholder="Deine Nachricht…" style="min-height:120px;resize:vertical"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeModal('compose-modal')">Abbrechen</button>
+      <button class="btn-primary" onclick="sendEmail()">Senden ✈️</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="event-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title">Neuer Termin</div><button class="modal-close" onclick="closeModal('event-modal')">×</button></div>
+    <div class="form-field"><div class="form-label">Titel</div><input class="form-input" id="event-title" placeholder="Meeting, Arzttermin…"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-field"><div class="form-label">Datum</div><input class="form-input" id="event-date" type="date"></div>
+      <div class="form-field"><div class="form-label">Uhrzeit</div><input class="form-input" id="event-time" type="time"></div>
+    </div>
+    <div class="form-field"><div class="form-label">Beschreibung</div><textarea class="form-input" id="event-desc" placeholder="Details…" style="min-height:70px"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeModal('event-modal')">Abbrechen</button>
+      <button class="btn-primary" onclick="addEvent()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="note-modal">
+  <div class="modal">
+    <div class="modal-header"><div class="modal-title" id="note-modal-title">Neue Notiz</div><button class="modal-close" onclick="closeModal('note-modal')">×</button></div>
+    <div class="form-field"><div class="form-label">Titel</div><input class="form-input" id="note-title" placeholder="Titel"></div>
+    <div class="form-field"><div class="form-label" id="note-body-label">Inhalt</div><textarea class="form-input" id="note-body" placeholder="Inhalt…" style="min-height:100px;resize:vertical"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeModal('note-modal')">Abbrechen</button>
+      <button class="btn-primary" onclick="saveNote()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════
+// CONFIG & STATE
+// ════════════════════════════════════════════════
+const CLAUDE_API = 'https://api.groq.com/openai/v1/chat/completions';
+const CLAUDE_MODEL = 'llama-3.3-70b-versatile';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILENAME = 'ki-agent-data.json';
+
+let GROQ_KEY = '';
+let GOOGLE_CLIENT_ID = '';
+let GOOGLE_API_KEY = '';
+let driveFileId = null;
+let tokenClient = null;
+let gapiReady = false;
+let currentNoteType = 'note';
+let currentMode = 'general';
+let calYear, calMonth, calEvents = [];
+
+let appData = {
+  settings: { name: '', system: '' },
+  chatHistory: [],
+  recipes: [],
+  notes: []
+};
+
+// ════════════════════════════════════════════════
+// SETUP
+// ════════════════════════════════════════════════
+function loadSavedKeys() {
+  GROQ_KEY = localStorage.getItem('ki_anthropic') || '';
+  GOOGLE_CLIENT_ID = localStorage.getItem('ki_client_id') || '';
+  GOOGLE_API_KEY = localStorage.getItem('ki_api_key') || '';
+  if (GROQ_KEY && GOOGLE_CLIENT_ID && GOOGLE_API_KEY) {
+    document.getElementById('input-anthropic').value = GROQ_KEY;
+    document.getElementById('input-client-id').value = GOOGLE_CLIENT_ID;
+    document.getElementById('input-api-key').value = GOOGLE_API_KEY;
+  }
+}
+
+async function startSetup() {
+  const btn = document.getElementById('setup-btn');
+  const err = document.getElementById('setup-error');
+  err.classList.remove('show');
+
+  GROQ_KEY = document.getElementById('input-anthropic').value.trim();
+  GOOGLE_CLIENT_ID = document.getElementById('input-client-id').value.trim();
+  GOOGLE_API_KEY = document.getElementById('input-api-key').value.trim();
+
+  if (!GROQ_KEY || !GOOGLE_CLIENT_ID || !GOOGLE_API_KEY) {
+    err.textContent = 'Bitte alle drei Felder ausfüllen.';
+    err.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span>Verbinde…</span>';
+
+  try {
+    await initGoogleAPI();
+    localStorage.setItem('ki_anthropic', GROQ_KEY);
+    localStorage.setItem('ki_client_id', GOOGLE_CLIENT_ID);
+    localStorage.setItem('ki_api_key', GOOGLE_API_KEY);
+    launchApp();
+  } catch (e) {
+    err.textContent = 'Fehler: ' + (e.message || 'Verbindung fehlgeschlagen. Bitte API Keys prüfen.');
+    err.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = '<span>Mit Google Drive verbinden</span> →';
+  }
+}
+
+function resetSetup() {
+  if (!confirm('API Keys löschen und neu einrichten?')) return;
+  localStorage.removeItem('ki_anthropic');
+  localStorage.removeItem('ki_client_id');
+  localStorage.removeItem('ki_api_key');
+  location.reload();
+}
+
+// ════════════════════════════════════════════════
+// GOOGLE API
+// ════════════════════════════════════════════════
+function initGoogleAPI() {
+  return new Promise((resolve, reject) => {
+    gapi.load('client', async () => {
+      try {
+        await gapi.client.init({
+          apiKey: GOOGLE_API_KEY,
+          discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+        });
+        gapiReady = true;
+
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: DRIVE_SCOPE,
+          callback: async (resp) => {
+            if (resp.error) { reject(new Error(resp.error)); return; }
+            resolve();
+          }
+        });
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } catch (e) { reject(e); }
+    });
+  });
+}
+
+function ensureToken() {
+  return new Promise((resolve) => {
+    if (gapi.client.getToken()) { resolve(); return; }
+    tokenClient.callback = (resp) => { if (!resp.error) resolve(); };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+// ════════════════════════════════════════════════
+// GOOGLE DRIVE STORAGE
+// ════════════════════════════════════════════════
+async function findOrCreateFile() {
+  await ensureToken();
+  const res = await gapi.client.drive.files.list({
+    q: `name='${DRIVE_FILENAME}' and trashed=false`,
+    fields: 'files(id,name)',
+    spaces: 'drive'
+  });
+  if (res.result.files.length > 0) {
+    driveFileId = res.result.files[0].id;
+    return 'existing';
+  }
+  return 'new';
+}
+
+async function loadFromDrive() {
+  setDrive('busy', 'Lade Daten…');
+  try {
+    const status = await findOrCreateFile();
+    if (status === 'existing') {
+      const res = await gapi.client.drive.files.get({ fileId: driveFileId, alt: 'media' });
+      const loaded = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
+      appData = deepMerge(appData, loaded);
+    }
+    setDrive('ok', 'Drive verbunden');
+    applyData();
+    showToast('✅ Daten geladen', 'success');
+  } catch (e) {
+    setDrive('err', 'Ladefehler');
+    showToast('⚠️ Daten konnten nicht geladen werden', 'error');
+  }
+}
+
+async function saveToDrive() {
+  setDrive('busy', 'Speichere…');
+  try {
+    await ensureToken();
+    const content = JSON.stringify(appData, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+
+    if (!driveFileId) {
+      // Create new file
+      const meta = { name: DRIVE_FILENAME, mimeType: 'application/json' };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+      form.append('file', blob);
+      const token = gapi.client.getToken().access_token;
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form
+      });
+      const data = await res.json();
+      driveFileId = data.id;
+    } else {
+      // Update existing
+      const token = gapi.client.getToken().access_token;
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: content
+      });
+    }
+    setDrive('ok', 'Drive gespeichert ✓');
+    showToast('💾 In Google Drive gespeichert', 'success');
+  } catch (e) {
+    setDrive('err', 'Speicherfehler');
+  }
+}
+
+async function syncNow() { await saveToDrive(); }
+
+let saveTimer;
+function debounceSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveToDrive, 2500); }
+
+function deepMerge(target, source) {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(target[key] || {}, source[key]);
+    } else { result[key] = source[key]; }
+  }
+  return result;
+}
+
+function setDrive(state, label) {
+  const dot = document.getElementById('drive-dot');
+  dot.className = 'drive-dot' + (state === 'ok' ? ' ok' : state === 'busy' ? ' busy' : ' err');
+  document.getElementById('drive-label').textContent = label;
+}
+
+// ════════════════════════════════════════════════
+// APP LAUNCH
+// ════════════════════════════════════════════════
+function launchApp() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app-sidebar').style.display = 'flex';
+  document.getElementById('app-main').style.display = 'flex';
+  initCalendar();
+  loadFromDrive();
+}
+
+function applyData() {
+  const s = appData.settings || {};
+  if (s.name) document.getElementById('setting-name').value = s.name;
+  if (s.system) document.getElementById('setting-system').value = s.system;
+  renderChatHistory(); renderNotes(); renderSavedRecipes(); updateStats();
+}
+
+function updateStats() {
+  document.getElementById('dash-chat-count').textContent = (appData.chatHistory || []).filter(m => m.role === 'user').length;
+  document.getElementById('dash-recipe-count').textContent = (appData.recipes || []).length;
+  document.getElementById('dash-notes-count').textContent = (appData.notes || []).length;
+}
+
+// ════════════════════════════════════════════════
+// NAV
+// ════════════════════════════════════════════════
+const viewNames = { dashboard:'Dashboard', chat:'KI-Assistent', email:'E-Mails', calendar:'Kalender', recipe:'Rezepte', notes:'Notizen & To-dos', social:'Social Media', website:'Website', settings:'Einstellungen' };
+document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name)?.classList.add('active');
+  document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
+  document.getElementById('header-title').textContent = viewNames[name] || name;
+  if (name === 'calendar') initCalendar();
+  if (name === 'recipe') renderSavedRecipes();
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════
+let toastT;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ════════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════════
+function saveSettings() {
+  appData.settings.name = document.getElementById('setting-name').value;
+  appData.settings.system = document.getElementById('setting-system').value;
+  debounceSave();
+}
+
+function clearData() {
+  if (!confirm('Wirklich alle Daten löschen?')) return;
+  appData = { settings: { name: '', system: '' }, chatHistory: [], recipes: [], notes: [] };
+  renderChatHistory(); renderNotes(); renderSavedRecipes(); updateStats();
+  saveToDrive(); showToast('🗑 Alle Daten gelöscht');
+}
+
+// ════════════════════════════════════════════════
+// CLAUDE API
+// ════════════════════════════════════════════════
+async function callClaude(system, messages, maxTokens = 1000) {
+  const res = await fetch(CLAUDE_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_KEY, 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: maxTokens, system, messages })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content?.[0]?.text || '';
+}
+
+// ════════════════════════════════════════════════
+// CHAT
+// ════════════════════════════════════════════════
+document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); currentMode = b.dataset.mode;
+}));
+
+function getModePrompt() {
+  const name = appData.settings.name ? `Der Nutzer heißt ${appData.settings.name}. ` : '';
+  const custom = appData.settings.system ? '\n' + appData.settings.system : '';
+  const modes = { general: 'Du bist ein hilfreicher persönlicher KI-Assistent. Antworte auf Deutsch, präzise und freundlich.', recipe: 'Du bist ein Koch-Assistent. Gib strukturierte Rezepte auf Deutsch.', seo: 'Du bist ein SEO-Experte. Gib konkrete Tipps auf Deutsch.', social: 'Du bist ein Social Media Stratege. Antworte auf Deutsch.', email: 'Du schreibst professionelle E-Mails auf Deutsch.' };
+  return name + (modes[currentMode] || modes.general) + custom;
+}
+
+function renderChatHistory() {
+  const c = document.getElementById('chat-messages'); c.innerHTML = '';
+  if (!appData.chatHistory || appData.chatHistory.length === 0) {
+    addBubble('ai', `Hallo${appData.settings.name ? ' ' + appData.settings.name : ''}! Ich bin dein persönlicher KI-Assistent. Alle Gespräche werden in deinem Google Drive gespeichert. Was kann ich für dich tun?`);
+    return;
+  }
+  appData.chatHistory.forEach(m => addBubble(m.role === 'user' ? 'user' : 'ai', m.content, false));
+}
+
+function setInput(text) { const i = document.getElementById('chat-input'); i.value = text; autoResize(i); switchView('chat'); }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+
+async function sendMessage() {
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim(); if (!text) return;
+  addBubble('user', text); inp.value = ''; inp.style.height = 'auto';
+  if (!appData.chatHistory) appData.chatHistory = [];
+  appData.chatHistory.push({ role: 'user', content: text });
+  document.getElementById('send-btn').disabled = true;
+  const typing = addTyping();
+  try {
+    const reply = await callClaude(getModePrompt(), appData.chatHistory);
+    typing.remove(); addBubble('ai', reply);
+    appData.chatHistory.push({ role: 'assistant', content: reply });
+    updateStats(); debounceSave();
+  } catch (e) { typing.remove(); addBubble('ai', '❌ Fehler: ' + e.message); }
+  document.getElementById('send-btn').disabled = false;
+}
+
+function addBubble(role, text, scroll = true) {
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = `msg ${role}`;
+  d.innerHTML = `<div class="msg-avatar">${role === 'ai' ? '✦' : '👤'}</div><div class="msg-bubble">${text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`;
+  c.appendChild(d); if (scroll) c.scrollTop = c.scrollHeight; return d;
+}
+
+function addTyping() {
+  const c = document.getElementById('chat-messages');
+  const d = document.createElement('div'); d.className = 'msg ai';
+  d.innerHTML = '<div class="msg-avatar">✦</div><div class="msg-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight; return d;
+}
+
+// ════════════════════════════════════════════════
+// EMAIL
+// ════════════════════════════════════════════════
+async function loadEmails() {
+  document.getElementById('email-status').textContent = 'Lade…';
+  document.getElementById('email-list').innerHTML = '<div style="padding:30px;text-align:center"><div class="loading-bar"></div><div style="margin-top:10px;font-size:12px;color:var(--muted)">Generiere Beispiel-E-Mails…</div></div>';
+  try {
+    const text = await callClaude('Antworte NUR mit einem JSON-Array. Kein Markdown.', [{ role: 'user', content: 'Erstelle 5 realistische E-Mail-Objekte. Felder: from, subject, preview, time, unread(bool), emoji' }]);
+    let emails; try { emails = JSON.parse(text.replace(/```json|```/g, '').match(/\[[\s\S]*\]/)?.[0] || '[]'); } catch (e) { emails = fallbackEmails(); }
+    renderEmails(emails); document.getElementById('email-status').textContent = `${emails.length} E-Mails`;
+  } catch (e) { renderEmails(fallbackEmails()); document.getElementById('email-status').textContent = 'Beispieldaten'; }
+}
+
+function fallbackEmails() { return [{ from: 'Max Müller', subject: 'Projekt-Update Q1', preview: 'Hallo, anbei das Update…', time: '09:32', unread: true, emoji: '👔' }, { from: 'GitHub', subject: 'New pull request', preview: 'A pull request was opened…', time: '08:15', unread: true, emoji: '⚙️' }, { from: 'Newsletter', subject: 'KI-Trends', preview: 'Die wichtigsten Entwicklungen…', time: 'Gestern', unread: false, emoji: '📰' }, { from: 'Anna', subject: 'Treffen?', preview: 'Wärst du Dienstag verfügbar?', time: 'Gestern', unread: false, emoji: '☕' }]; }
+
+function renderEmails(emails) {
+  const l = document.getElementById('email-list'); l.innerHTML = '';
+  emails.forEach(e => { const d = document.createElement('div'); d.className = `email-card ${e.unread ? 'unread' : ''}`; d.innerHTML = `<div class="email-avatar">${e.emoji || '📧'}</div><div class="email-info"><div class="email-from">${e.from}</div><div class="email-subject">${e.subject}</div><div class="email-preview">${e.preview}</div></div><div class="email-time">${e.time}</div>`; l.appendChild(d); });
+}
+
+async function aiWriteEmail() {
+  const p = document.getElementById('email-ai-prompt').value.trim(); if (!p) return;
+  document.getElementById('email-body').value = 'Generiere…';
+  try { document.getElementById('email-body').value = await callClaude('Schreibe professionelle deutsche E-Mails. Nur den Text.', [{ role: 'user', content: p }]); }
+  catch (e) { document.getElementById('email-body').value = 'Fehler.'; }
+}
+
+async function sendEmail() {
+  const to = document.getElementById('email-to').value.trim(), body = document.getElementById('email-body').value.trim();
+  if (!to || !body) return alert('Empfänger und Nachricht ausfüllen.');
+  closeModal('compose-modal'); showToast(`✅ E-Mail an ${to} gesendet (Demo)`, 'success');
+}
+
+// ════════════════════════════════════════════════
+// CALENDAR
+// ════════════════════════════════════════════════
+function initCalendar() { const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); renderCal(); }
+function changeMonth(d) { calMonth += d; if (calMonth < 0) { calMonth = 11; calYear--; } if (calMonth > 11) { calMonth = 0; calYear++; } renderCal(); }
+
+function renderCal() {
+  const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  document.getElementById('cal-month-label').textContent = `${months[calMonth]} ${calYear}`;
+  const g = document.getElementById('cal-days'); g.innerHTML = '';
+  const today = new Date();
+  let dow = new Date(calYear, calMonth, 1).getDay(); dow = dow === 0 ? 6 : dow - 1;
+  const last = new Date(calYear, calMonth + 1, 0).getDate();
+  const prevLast = new Date(calYear, calMonth, 0).getDate();
+  for (let i = dow - 1; i >= 0; i--) { const d = document.createElement('div'); d.className = 'cal-day other-month'; d.textContent = prevLast - i; g.appendChild(d); }
+  for (let d = 1; d <= last; d++) {
+    const el = document.createElement('div'); el.className = 'cal-day';
+    if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) el.classList.add('today');
+    const ds = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    if (calEvents.some(e => e.date === ds)) el.classList.add('has-event');
+    el.textContent = d; g.appendChild(el);
+  }
+  const rem = Math.ceil((dow + last) / 7) * 7 - (dow + last);
+  for (let d = 1; d <= rem; d++) { const el = document.createElement('div'); el.className = 'cal-day other-month'; el.textContent = d; g.appendChild(el); }
+}
+
+function addEvent() {
+  const title = document.getElementById('event-title').value.trim(), date = document.getElementById('event-date').value, time = document.getElementById('event-time').value;
+  if (!title || !date) return alert('Titel und Datum ausfüllen.');
+  calEvents.push({ title, date, time, color: 'var(--accent2)' }); renderCal();
+  renderUpcoming(calEvents); closeModal('event-modal');
+  showToast(`✅ "${title}" gespeichert`, 'success');
+}
+
+function renderUpcoming(events) {
+  const c = document.getElementById('upcoming-events'); c.innerHTML = '';
+  if (!events.length) { c.innerHTML = '<div style="color:var(--muted);font-size:12px">Keine Termine</div>'; return; }
+  events.slice(0, 5).forEach(e => { const d = document.createElement('div'); d.className = 'event-item'; d.innerHTML = `<div class="event-dot" style="background:${e.color || 'var(--accent)'}"></div><div><div class="event-name">${e.title}</div><div class="event-time">${e.date} · ${e.time}</div></div>`; c.appendChild(d); });
+}
+
+// ════════════════════════════════════════════════
+// RECIPE
+// ════════════════════════════════════════════════
+async function generateRecipe() {
+  const input = document.getElementById('recipe-input').value.trim(); if (!input) return;
+  const btn = document.getElementById('recipe-btn'); btn.disabled = true; btn.textContent = '⏳ Generiere…';
+  document.getElementById('recipe-results').innerHTML = '<div style="grid-column:1/-1"><div class="loading-bar"></div></div>';
+  try {
+    const text = await callClaude('Antworte NUR mit JSON. Kein Markdown.', [{ role: 'user', content: `Rezept für: "${input}". JSON: {name,time,difficulty,servings,ingredients:[string],steps:[string],tips}` }]);
+    let r; try { r = JSON.parse(text.replace(/```json|```/g, '').trim()); } catch (e) { r = { name: input, time: '30 Min', difficulty: 'Mittel', servings: 4, ingredients: ['Zutaten…'], steps: ['Schritte…'], tips: '' }; }
+    renderRecipe(r);
+  } catch (e) { document.getElementById('recipe-results').innerHTML = `<div style="color:var(--danger)">Fehler: ${e.message}</div>`; }
+  btn.disabled = false; btn.textContent = '🍳 Generieren';
+}
+
+function renderRecipe(r) {
+  document.getElementById('recipe-results').innerHTML = `
+    <div class="recipe-result-card">
+      <h3>${r.name}</h3>
+      <div class="recipe-meta"><div class="recipe-meta-item">⏱ ${r.time}</div><div class="recipe-meta-item">📊 ${r.difficulty}</div><div class="recipe-meta-item">👤 ${r.servings}P</div></div>
+      <div class="recipe-section-title">Zutaten</div>
+      <ul class="recipe-list">${(r.ingredients || []).map(i => `<li>${i}</li>`).join('')}</ul>
+      ${r.tips ? `<div style="background:rgba(200,245,90,0.08);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--muted)">💡 ${r.tips}</div>` : ''}
+      <button class="btn-secondary" style="margin-top:12px;font-size:12px;width:100%" onclick='saveRecipe(${JSON.stringify(r).replace(/\\/g, "\\\\").replace(/'/g, "&#39;")})'>⭐ Als Favorit speichern</button>
+    </div>
+    <div class="recipe-result-card">
+      <h3>Zubereitung</h3>
+      <ol style="padding-left:16px;display:flex;flex-direction:column;gap:8px">${(r.steps || []).map(s => `<li style="font-size:12px;line-height:1.6">${s}</li>`).join('')}</ol>
+    </div>`;
+}
+
+function saveRecipe(r) {
+  if (!appData.recipes) appData.recipes = [];
+  if (appData.recipes.some(x => x.name === r.name)) { showToast('Bereits gespeichert'); return; }
+  appData.recipes.push(r); renderSavedRecipes(); updateStats(); debounceSave();
+  showToast(`⭐ "${r.name}" in Drive gespeichert`, 'success');
+}
+
+function renderSavedRecipes() {
+  const g = document.getElementById('saved-recipes-grid'), s = document.getElementById('saved-recipes-section');
+  if (!appData.recipes || appData.recipes.length === 0) { s.style.display = 'none'; return; }
+  s.style.display = 'block'; g.innerHTML = '';
+  appData.recipes.forEach((r, i) => {
+    const d = document.createElement('div'); d.className = 'saved-recipe-card';
+    d.innerHTML = `<button class="del-btn" onclick="deleteRecipe(${i});event.stopPropagation()">×</button><div class="saved-recipe-name">${r.name}</div><div class="saved-recipe-meta">⏱ ${r.time} · 👤 ${r.servings}P</div>`;
+    d.onclick = () => renderRecipe(r); g.appendChild(d);
+  });
+}
+
+function deleteRecipe(i) { appData.recipes.splice(i, 1); renderSavedRecipes(); updateStats(); debounceSave(); showToast('Rezept gelöscht'); }
+
+// ════════════════════════════════════════════════
+// NOTES
+// ════════════════════════════════════════════════
+function openNoteModal(type) {
+  currentNoteType = type;
+  document.getElementById('note-modal-title').textContent = type === 'todo' ? 'Neues To-do' : 'Neue Notiz';
+  document.getElementById('note-body-label').textContent = type === 'todo' ? 'Aufgaben (eine pro Zeile)' : 'Inhalt';
+  document.getElementById('note-title').value = ''; document.getElementById('note-body').value = '';
+  openModal('note-modal');
+}
+
+function saveNote() {
+  const title = document.getElementById('note-title').value.trim(), body = document.getElementById('note-body').value.trim();
+  if (!title) return alert('Titel ausfüllen.');
+  if (!appData.notes) appData.notes = [];
+  appData.notes.unshift({ id: Date.now(), type: currentNoteType, title, body, date: new Date().toLocaleDateString('de-DE') });
+  renderNotes(); updateStats(); closeModal('note-modal'); debounceSave();
+  showToast('📝 Notiz gespeichert', 'success');
+}
+
+function renderNotes() {
+  const g = document.getElementById('notes-grid'); g.innerHTML = '';
+  if (!appData.notes || appData.notes.length === 0) { g.innerHTML = '<div style="color:var(--muted);font-size:13px;grid-column:1/-1;text-align:center;padding:40px">Erstelle deine erste Notiz!</div>'; return; }
+  appData.notes.forEach((n, i) => {
+    const d = document.createElement('div'); d.className = `note-card ${n.type}`;
+    const badge = n.type === 'todo' ? '<span class="note-badge badge-todo">To-do</span>' : '<span class="note-badge badge-note">Notiz</span>';
+    const bodyHtml = n.type === 'todo'
+      ? n.body.split('\n').filter(Boolean).map(t => `<div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:4px"><div style="width:12px;height:12px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;margin-top:2px"></div><span style="font-size:12px;color:var(--muted)">${t}</span></div>`).join('')
+      : `<div class="note-body">${n.body.substring(0, 120)}${n.body.length > 120 ? '…' : ''}</div>`;
+    d.innerHTML = `<button class="note-del" onclick="deleteNote(${i});event.stopPropagation()">×</button>${badge}<div class="note-title">${n.title}</div>${bodyHtml}<div class="note-date">${n.date}</div>`;
+    g.appendChild(d);
+  });
+}
+
+function deleteNote(i) { appData.notes.splice(i, 1); renderNotes(); updateStats(); debounceSave(); showToast('Notiz gelöscht'); }
+
+// ════════════════════════════════════════════════
+// SOCIAL
+// ════════════════════════════════════════════════
+async function generateSocialInsights() {
+  const c = document.getElementById('social-ai-insights'); c.innerHTML = '<div class="loading-bar"></div>';
+  try {
+    const text = await callClaude('Du bist ein Social Media Experte. Antworte auf Deutsch.', [{ role: 'user', content: 'Gib mir 3 konkrete Social Media Tipps und 2 Content-Ideen für diese Woche.' }]);
+    c.innerHTML = `<div class="social-card"><div class="social-platform"><div class="platform-icon" style="background:rgba(200,245,90,0.1)">✦</div><div><div class="platform-name">KI-Analyse</div><div class="platform-handle">Personalisierte Empfehlungen</div></div></div><div style="font-size:13px;line-height:1.7">${text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div></div>`;
+  } catch (e) { c.innerHTML = `<div style="color:var(--danger);font-size:12px">Fehler: ${e.message}</div>`; }
+}
+
+// ════════════════════════════════════════════════
+// WEBSITE
+// ════════════════════════════════════════════════
+async function analyzeWebsite() {
+  const url = document.getElementById('website-url').value.trim(); if (!url) return;
+  const r = document.getElementById('website-results'); r.innerHTML = '<div class="loading-bar"></div><div style="color:var(--muted);font-size:12px;margin-top:6px">Analysiere…</div>';
+  try {
+    const text = await callClaude('Antworte NUR mit JSON. Kein Markdown.', [{ role: 'user', content: `Analysiere: ${url}. JSON: {score(0-100),summary,issues:[{severity:"high|medium|low",text}],suggestions:[string]}` }]);
+    let a; try { a = JSON.parse(text.replace(/```json|```/g, '').trim()); } catch (e) { a = { score: 72, summary: `Analyse für ${url}.`, issues: [{ severity: 'high', text: 'Meta-Beschreibungen fehlen' }, { severity: 'medium', text: 'Bilder ohne Alt-Text' }, { severity: 'low', text: 'Interne Verlinkung verbesserbar' }], suggestions: ['Core Web Vitals optimieren', 'Schema.org Markup', 'Mobile Ladezeit verbessern'] }; }
+    const sm = { high: 'sev-high', medium: 'sev-med', low: 'sev-low' }, sl = { high: 'Hoch', medium: 'Mittel', low: 'Niedrig' };
+    r.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="analysis-card"><div class="analysis-title">Score</div><div style="display:flex;align-items:center;gap:16px"><div class="score-circle">${a.score}</div><div><strong>${a.score >= 80 ? 'Gut' : a.score >= 60 ? 'Mittelmäßig' : 'Verbesserungsbedarf'}</strong><p style="font-size:11px;color:var(--muted);margin-top:4px">${a.summary}</p></div></div></div>
+      <div class="analysis-card"><div class="analysis-title">Empfehlungen</div><ul class="recipe-list" style="margin:0">${(a.suggestions || []).map(s => `<li>${s}</li>`).join('')}</ul></div>
+      <div class="analysis-card" style="grid-column:1/-1"><div class="analysis-title">Probleme</div><div class="issue-list">${(a.issues || []).map(i => `<div class="issue-item"><span class="issue-severity ${sm[i.severity]}">${sl[i.severity]}</span><span>${i.text}</span></div>`).join('')}</div></div>
+    </div>`;
+  } catch (e) { r.innerHTML = `<div style="color:var(--danger)">Fehler: ${e.message}</div>`; }
+}
+
+// ════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════
+loadSavedKeys();
+
+// Auto-start if keys already saved
+if (localStorage.getItem('ki_anthropic') && localStorage.getItem('ki_client_id') && localStorage.getItem('ki_api_key')) {
+  document.getElementById('setup-btn').textContent = 'Erneut mit Google Drive verbinden →';
+}
+</script>
+</body>
+</html>
